@@ -48,6 +48,7 @@ generateTerrain();
 
 // --- Lander State ---
 function randomBetween(a, b) { return a + Math.random() * (b - a); }
+let gameState = 'start'; // or 'playing', 'landed', 'crashed'
 let lander = {
     x: canvas.width / 2,
     y: 100,
@@ -77,6 +78,7 @@ function isOnPad(x) {
 }
 
 function update() {
+    if (gameState !== 'playing') return;
     if (!lander.alive || lander.landed) return;
 
     if (lander.rotatingLeft) lander.angle -= ROTATE_SPEED;
@@ -107,8 +109,10 @@ function update() {
             Math.abs(lander.angle) < SAFE_LANDING_ANGLE
         ) {
             lander.landed = true;
+            gameState = 'landed';
         } else {
             lander.alive = false;
+            gameState = 'crashed';
         }
         lander.vx = 0;
         lander.vy = 0;
@@ -171,13 +175,25 @@ function drawOverlay() {
     ctx.fillText(`Orientation: ${orientation}°`, 20, 70);
     ctx.fillText(`V-Speed: ${lander.vy.toFixed(2)} px/frame`, 20, 100);
     ctx.fillText(`X: ${lander.x.toFixed(1)} px`, 20, 130); // <-- Added X coordinate
-    if (lander.landed) {
+    ctx.font = '30px monospace';
+
+    if (gameState === 'start') {
+        ctx.fillStyle = 'white';
+        ctx.fillText('MOON LANDER', canvas.width / 2 - 110, canvas.height / 2 - 40);
+        ctx.font = '18px monospace';
+        ctx.fillText('Press ENTER to start', canvas.width / 2 - 100, canvas.height / 2);
+    } else if (gameState === 'landed') {
         ctx.fillStyle = 'lime';
-        ctx.fillText('LANDED!', canvas.width / 2 - 60, 80);
-    } else if (!lander.alive) {
+        ctx.fillText('LANDED SAFELY!', canvas.width / 2 - 130, canvas.height / 2);
+        ctx.font = '18px monospace';
+        ctx.fillText('Press ENTER to restart', canvas.width / 2 - 110, canvas.height / 2 + 40);
+    } else if (gameState === 'crashed') {
         ctx.fillStyle = 'red';
-        ctx.fillText('CRASH!', canvas.width / 2 - 50, 80);
+        ctx.fillText('YOU CRASHED!', canvas.width / 2 - 130, canvas.height / 2);
+        ctx.font = '18px monospace';
+        ctx.fillText('Press ENTER to try again', canvas.width / 2 - 120, canvas.height / 2 + 40);
     }
+
     ctx.restore();
 }
 
@@ -195,24 +211,33 @@ function gameLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
+    if (gameState === 'start' && (e.code === 'Enter' || e.code === "Space")) {
+        gameState = 'playing';
+        return;
+    }
+
     if (e.code === 'ArrowUp') lander.thrusting = true;
     if (e.code === 'ArrowLeft') lander.rotatingLeft = true;
     if (e.code === 'ArrowRight') lander.rotatingRight = true;
-    if ((e.code === 'Space' || e.code === 'Enter') && (!lander.alive || lander.landed)) {
-        // Restart game
+
+    if ((e.code === 'Enter' || e.code === "Space") && (gameState === 'crashed' || gameState === 'landed')) {
         generateTerrain();
-        lander.x = canvas.width / 2;
-        lander.y = 100;
-        lander.vx = randomBetween(-1, 1);
-        lander.vy = randomBetween(0.5, 2);
-        lander.angle = randomBetween(-Math.PI / 4, Math.PI / 4);
-        lander.thrusting = false;
-        lander.rotatingLeft = false;
-        lander.rotatingRight = false;
-        lander.alive = true;
-        lander.landed = false;
+        Object.assign(lander, {
+            x: canvas.width / 2,
+            y: 100,
+            vx: randomBetween(-1, 1),
+            vy: randomBetween(0.5, 2),
+            angle: randomBetween(-Math.PI / 4, Math.PI / 4),
+            thrusting: false,
+            rotatingLeft: false,
+            rotatingRight: false,
+            alive: true,
+            landed: false
+        });
+        gameState = 'playing';
     }
 });
+
 
 document.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowUp') lander.thrusting = false;
