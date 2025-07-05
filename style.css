@@ -8,3 +8,23 @@ canvas {
     display: block;
     background: #111;
 }
+
+#touchControls {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 20px;
+}
+
+#touchControls button {
+  width: 60px;
+  height: 60px;
+  font-size: 30px;
+  border: none;
+  border-radius: 10px;
+  background-color: #444;
+  color: white;
+  opacity: 0.8;
+}

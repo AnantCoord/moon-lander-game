@@ -142,12 +142,14 @@ function update() {
         ) {
             lander.landed = true;
             gameState = 'landed';
+            sounds.land.currentTime = 0;
             sounds.land.play();
             level++;
             difficulty++;
         } else {
             lander.alive = false;
             gameState = 'crashed';
+            sounds.land.currentTime = 0;
             sounds.crash.play();
         }
         lander.vx = 0;
@@ -202,7 +204,6 @@ function drawOverlay() {
     ctx.font = '20px monospace';
     ctx.fillStyle = 'white';
 
-    // Always show HUD during gameplay
     if (gameState === 'playing') {
         const landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
         const terrainY = getTerrainY(lander.x);
@@ -213,7 +214,9 @@ function drawOverlay() {
         ctx.fillText(`Orientation: ${orientation}°`, 20, 70);
         ctx.fillText(`V-Speed: ${lander.vy.toFixed(2)} px/frame`, 20, 100);
         ctx.fillText(`X: ${lander.x.toFixed(1)} px`, 20, 130);
-        ctx.fillText(`Level: ${level}`, 20, 160);
+        ctx.textAlign = 'right';
+        ctx.font = '30px monospace';
+        ctx.fillText(`Level: ${level}`, canvas.width-20, 40);
     }
 
     // Centered messages
@@ -314,3 +317,28 @@ document.addEventListener('keydown', () => {
 
 
 gameLoop();
+
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+if (isTouch) {
+    document.getElementById('touchControls').style.display = 'flex';
+
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnThrust = document.getElementById('btnThrust');
+
+    const setHold = (button, key, isDown) => {
+        button.addEventListener('touchstart', e => {
+            e.preventDefault();
+            lander[key] = true;
+        });
+        button.addEventListener('touchend', e => {
+            e.preventDefault();
+            lander[key] = false;
+        });
+    };
+
+    setHold(btnLeft, 'rotatingLeft');
+    setHold(btnRight, 'rotatingRight');
+    setHold(btnThrust, 'thrusting');
+}
