@@ -10,13 +10,21 @@
 
 <body>
   <canvas id="gameCanvas"></canvas>
-  <button id="startButton" style="display:none;">Tap to Start</button>
+  <div id="overlay" class="hidden">
+    <div class="overlay-content">
+      <h1>🌕 Moon Lander</h1>
+      <p id="overlayMsg">Tap to Start</p>
+    </div>
+  </div>
   <div id="touchControls">
-    <button id="btnLeft">⟲</button>
+    <button id="btnLeft">⟳</button>
     <button id="btnThrust">↑</button>
-    <button id="btnRight">⟳</button>
+    <button id="btnRight">⟲</button>
   </div>
   <script src="game.js"></script>
+  <footer id="credits">
+    <a href="https://github.com/Foolish-Genius/" target="_blank" rel="noopener">Made with ❤️ by Foolish Genius </a>
+  </footer>
 </body>
 
 </html>

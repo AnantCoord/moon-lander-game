@@ -1,8 +1,12 @@
 // --- Terrain Generation ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 const stars = Array.from({ length: 100 }, () => ({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
@@ -19,16 +23,6 @@ sounds.land.volume = 0.8;
 sounds.crash.volume = 0.8;
 
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
-if (isTouch) {
-    const startBtn = document.getElementById('startButton');
-    startBtn.style.display = 'block';
-
-    startBtn.addEventListener('click', () => {
-        gameState = 'playing';
-        startBtn.style.display = 'none';
-    });
-}
 
 const GRAVITY = 0.001;
 const THRUST = -0.01;
@@ -96,6 +90,8 @@ let lander = {
     alive: true,
     landed: false
 };
+let particles = [];
+const trail = [];
 
 function getTerrainY(x) {
     // Linear interpolation between terrain points
@@ -106,6 +102,11 @@ function getTerrainY(x) {
         }
     }
     return groundY;
+}
+
+function isSafeAngle(angle) {
+    const norm = (angle + Math.PI) % (2 * Math.PI) - Math.PI;
+    return Math.abs(norm) < SAFE_LANDING_ANGLE;
 }
 
 function isOnPad(x) {
@@ -136,21 +137,32 @@ function update() {
         }
     }
 
+    if (lander.thrusting && lander.alive && !lander.landed) {
+        spawnParticles(lander.x, lander.y + LANDER_HEIGHT / 2, 'white', 2, 0.5, 40);
+    }
+
     lander.vx += ax;
     lander.vy += ay;
 
     lander.x += lander.vx;
     lander.y += lander.vy;
 
-    // --- Collision Detection ---
-    let landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
-    let terrainY = getTerrainY(lander.x);
+    trail.push({ x: lander.x, y: lander.y });
+    if (trail.length > 100) trail.shift();
 
-    if (landerBottomY >= terrainY) {
+    // --- Collision Detection ---
+    const halfWidth = LANDER_WIDTH / 2;
+    const leftX = lander.x - halfWidth;
+    const rightX = lander.x + halfWidth;
+    const bottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
+    const terrainLeftY = getTerrainY(leftX);
+    const terrainRightY = getTerrainY(rightX);
+
+    if (bottomY >= terrainLeftY || bottomY >= terrainRightY) {
         if (
             isOnPad(lander.x) &&
             Math.abs(lander.vy) < SAFE_LANDING_VY &&
-            Math.abs(lander.angle) < SAFE_LANDING_ANGLE
+            isSafeAngle(lander.angle)
         ) {
             lander.landed = true;
             gameState = 'landed';
@@ -161,12 +173,63 @@ function update() {
         } else {
             lander.alive = false;
             gameState = 'crashed';
-            sounds.land.currentTime = 0;
+            sounds.crash.currentTime = 0;
             sounds.crash.play();
+            spawnParticles(lander.x, lander.y, 'red', 40, 3, 60);
         }
         lander.vx = 0;
         lander.vy = 0;
     }
+
+    if (!lander.alive && gameState === 'crashed') {
+        spawnParticles(lander.x, lander.y, 'red', 40, 3, 60);
+    }
+}
+
+function spawnParticles(x, y, color = 'white', count = 10, spread = 2, life = 60) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x,
+            y,
+            vx: (Math.random() - 0.5) * spread,
+            vy: (Math.random() - 0.5) * spread,
+            life,
+            color
+        });
+    }
+}
+
+function updateParticles() {
+    particles = particles.filter(p => p.life-- > 0);
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+    });
+}
+
+function drawParticles() {
+    particles.forEach(p => {
+        ctx.globalAlpha = Math.max(0, p.life / 60);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+}
+
+function drawTrail() {
+    ctx.strokeStyle = 'cyan';
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < trail.length - 1; i++) {
+        const p1 = trail[i];
+        const p2 = trail[i + 1];
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
 }
 
 function drawLander() {
@@ -215,12 +278,12 @@ function drawOverlay() {
     ctx.save();
     ctx.font = '20px monospace';
     ctx.fillStyle = 'white';
+    const landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
+    const terrainY = getTerrainY(lander.x);
+    const altitude = Math.max(0, terrainY - landerBottomY);
+    const orientation = (lander.angle * 180 / Math.PI).toFixed(1);
 
     if (gameState === 'playing') {
-        const landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
-        const terrainY = getTerrainY(lander.x);
-        const altitude = Math.max(0, terrainY - landerBottomY);
-        const orientation = (lander.angle * 180 / Math.PI).toFixed(1);
 
         ctx.fillText(`Altitude: ${altitude.toFixed(1)} px`, 20, 40);
         ctx.fillText(`Orientation: ${orientation}°`, 20, 70);
@@ -228,7 +291,7 @@ function drawOverlay() {
         ctx.fillText(`X: ${lander.x.toFixed(1)} px`, 20, 130);
         ctx.textAlign = 'right';
         ctx.font = '30px monospace';
-        ctx.fillText(`Level: ${level}`, canvas.width-20, 40);
+        ctx.fillText(`Level: ${level}`, canvas.width - 20, 40);
     }
 
     // Centered messages
@@ -239,10 +302,14 @@ function drawOverlay() {
         ctx.fillText('🌕 Moon Lander', canvas.width / 2, canvas.height / 2 - 80);
 
         ctx.font = '20px monospace';
-        ctx.fillText('Use Arrow Keys to Rotate and Thrust', canvas.width / 2, canvas.height / 2 - 20);
         ctx.fillText('Land upright and softly on yellow pads', canvas.width / 2, canvas.height / 2 + 10);
-        ctx.fillText('Press ENTER to Begin', canvas.width / 2, canvas.height / 2 + 60);
+        if (isTouch) {
+            ctx.fillText('Tap to Begin', canvas.width / 2, canvas.height / 2 + 60);
+        } else {
+            ctx.fillText('Use Arrow Keys & ENTER to Play', canvas.width / 2, canvas.height / 2 + 60);
+        }
     }
+
 
     if (gameState === 'landed') {
         ctx.fillStyle = 'lime';
@@ -275,13 +342,19 @@ function drawStars() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawStars();
+    // drawTrail();
     drawTerrain();
+    // drawParticles();
     drawLander();
     drawOverlay();
 }
 
 function gameLoop() {
     update();
+    if (isTouch) {
+        document.getElementById('touchControls').style.display =
+            gameState === 'playing' ? 'flex' : 'none';
+    }
     draw();
     requestAnimationFrame(gameLoop);
 }
@@ -322,7 +395,7 @@ document.addEventListener('keyup', (e) => {
 });
 
 const unlockAudio = () => {
-    sounds.thrust.play().catch(() => {});
+    sounds.thrust.play().catch(() => { });
     sounds.thrust.pause();
 };
 document.addEventListener('keydown', unlockAudio, { once: true });
@@ -331,7 +404,7 @@ document.addEventListener('touchstart', unlockAudio, { once: true });
 gameLoop();
 
 if (isTouch) {
-    document.getElementById('touchControls').style.display = 'flex';
+    // document.getElementById('touchControls').style.display = 'flex';
 
     const btnLeft = document.getElementById('btnLeft');
     const btnRight = document.getElementById('btnRight');
@@ -351,4 +424,25 @@ if (isTouch) {
     setHold(btnLeft, 'rotatingLeft');
     setHold(btnRight, 'rotatingRight');
     setHold(btnThrust, 'thrusting');
+}
+
+if (isTouch) {
+    document.addEventListener('touchstart', () => {
+        if (gameState === 'start' || gameState === 'crashed' || gameState === 'landed') {
+            generateTerrain(difficulty);
+            Object.assign(lander, {
+                x: canvas.width / 2,
+                y: 100,
+                vx: randomBetween(-1, 1),
+                vy: randomBetween(0.5, 2),
+                angle: randomBetween(-Math.PI / 4, Math.PI / 4),
+                thrusting: false,
+                rotatingLeft: false,
+                rotatingRight: false,
+                alive: true,
+                landed: false
+            });
+            gameState = 'playing';
+        }
+    });
 }
