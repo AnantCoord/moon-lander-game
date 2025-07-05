@@ -3,6 +3,20 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+const stars = Array.from({ length: 100 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    size: Math.random() * 2 + 1
+}));
+
+const sounds = {
+    thrust: new Audio('sounds/rocketthrust.mp3'),
+    land: new Audio('sounds/rocket-landing.mp3'),
+    crash: new Audio('sounds/crash.mp3')
+};
+sounds.thrust.volume = 0.6;
+sounds.land.volume = 0.8;
+sounds.crash.volume = 0.8;
 
 const GRAVITY = 0.001;
 const THRUST = -0.01;
@@ -14,33 +28,42 @@ const PAD_COUNT = 3;
 const SAFE_LANDING_VY = 1.2;
 const SAFE_LANDING_ANGLE = Math.PI / 8; // ~22.5 deg
 
+let level = 1;
+let difficulty = 1; // affects terrain roughness and pad count
+
 // --- Generate Terrain ---
 const terrainPoints = [];
 const terrainStep = 20;
 const groundY = canvas.height - 50;
 let pads = [];
 
-function generateTerrain() {
+function generateTerrain(difficulty = 1) {
+    terrainPoints.length = 0; // reset
+    const padCount = Math.max(1, PAD_COUNT - difficulty + 1);
+    const padWidth = Math.max(40, PAD_WIDTH - difficulty * 10);
+    const maxStep = 40 + difficulty * 10;
+
     let x = 0;
     let lastY = groundY - 100;
     while (x < canvas.width) {
-        let y = lastY + (Math.random() - 0.5) * 40;
+        let y = lastY + (Math.random() - 0.5) * maxStep;
         y = Math.max(groundY - 180, Math.min(groundY - 20, y));
         terrainPoints.push({ x, y });
         lastY = y;
         x += terrainStep;
     }
+
     // Add flat pads
     pads = [];
-    for (let i = 0; i < PAD_COUNT; i++) {
-        let padIdx = Math.floor(Math.random() * (terrainPoints.length - PAD_WIDTH / terrainStep));
-        for (let j = 0; j < PAD_WIDTH / terrainStep; j++) {
+    for (let i = 0; i < padCount; i++) {
+        let padIdx = Math.floor(Math.random() * (terrainPoints.length - padWidth / terrainStep));
+        for (let j = 0; j < padWidth / terrainStep; j++) {
             terrainPoints[padIdx + j].y = terrainPoints[padIdx].y;
         }
         pads.push({
             x: terrainPoints[padIdx].x,
             y: terrainPoints[padIdx].y,
-            width: PAD_WIDTH
+            width: padWidth
         });
     }
 }
@@ -90,6 +113,15 @@ function update() {
     if (lander.thrusting) {
         ax += Math.sin(lander.angle) * THRUST;
         ay += Math.cos(lander.angle) * THRUST;
+        if (sounds.thrust.paused) {
+            sounds.thrust.loop = true;
+            sounds.thrust.play();
+        }
+    } else {
+        if (!sounds.thrust.paused) {
+            sounds.thrust.pause();
+            sounds.thrust.currentTime = 0;
+        }
     }
 
     lander.vx += ax;
@@ -110,9 +142,13 @@ function update() {
         ) {
             lander.landed = true;
             gameState = 'landed';
+            sounds.land.play();
+            level++;
+            difficulty++;
         } else {
             lander.alive = false;
             gameState = 'crashed';
+            sounds.crash.play();
         }
         lander.vx = 0;
         lander.vy = 0;
@@ -162,43 +198,68 @@ function drawTerrain() {
 }
 
 function drawOverlay() {
-    // Altitude = vertical distance from lander bottom to terrain
-    let landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
-    let terrainY = getTerrainY(lander.x);
-    let altitude = Math.max(0, terrainY - landerBottomY);
-    let orientation = (lander.angle * 180 / Math.PI).toFixed(1);
-
     ctx.save();
     ctx.font = '20px monospace';
     ctx.fillStyle = 'white';
-    ctx.fillText(`Altitude: ${altitude.toFixed(1)} px`, 20, 40);
-    ctx.fillText(`Orientation: ${orientation}°`, 20, 70);
-    ctx.fillText(`V-Speed: ${lander.vy.toFixed(2)} px/frame`, 20, 100);
-    ctx.fillText(`X: ${lander.x.toFixed(1)} px`, 20, 130); // <-- Added X coordinate
-    ctx.font = '30px monospace';
+
+    // Always show HUD during gameplay
+    if (gameState === 'playing') {
+        const landerBottomY = lander.y + Math.cos(lander.angle) * LANDER_HEIGHT / 2;
+        const terrainY = getTerrainY(lander.x);
+        const altitude = Math.max(0, terrainY - landerBottomY);
+        const orientation = (lander.angle * 180 / Math.PI).toFixed(1);
+
+        ctx.fillText(`Altitude: ${altitude.toFixed(1)} px`, 20, 40);
+        ctx.fillText(`Orientation: ${orientation}°`, 20, 70);
+        ctx.fillText(`V-Speed: ${lander.vy.toFixed(2)} px/frame`, 20, 100);
+        ctx.fillText(`X: ${lander.x.toFixed(1)} px`, 20, 130);
+        ctx.fillText(`Level: ${level}`, 20, 160);
+    }
+
+    // Centered messages
+    ctx.textAlign = 'center';
 
     if (gameState === 'start') {
-        ctx.fillStyle = 'white';
-        ctx.fillText('MOON LANDER', canvas.width / 2 - 110, canvas.height / 2 - 40);
-        ctx.font = '18px monospace';
-        ctx.fillText('Press ENTER to start', canvas.width / 2 - 100, canvas.height / 2);
-    } else if (gameState === 'landed') {
+        ctx.font = '36px monospace';
+        ctx.fillText('🌕 Moon Lander', canvas.width / 2, canvas.height / 2 - 80);
+
+        ctx.font = '20px monospace';
+        ctx.fillText('Use Arrow Keys to Rotate and Thrust', canvas.width / 2, canvas.height / 2 - 20);
+        ctx.fillText('Land upright and softly on yellow pads', canvas.width / 2, canvas.height / 2 + 10);
+        ctx.fillText('Press ENTER to Begin', canvas.width / 2, canvas.height / 2 + 60);
+    }
+
+    if (gameState === 'landed') {
         ctx.fillStyle = 'lime';
-        ctx.fillText('LANDED SAFELY!', canvas.width / 2 - 130, canvas.height / 2);
-        ctx.font = '18px monospace';
-        ctx.fillText('Press ENTER to restart', canvas.width / 2 - 110, canvas.height / 2 + 40);
-    } else if (gameState === 'crashed') {
+        ctx.font = '30px monospace';
+        ctx.fillText('Successful Landing!', canvas.width / 2, canvas.height / 2 - 20);
+        ctx.font = '20px monospace';
+        ctx.fillText('Press ENTER for Next Level', canvas.width / 2, canvas.height / 2 + 20);
+    }
+
+    if (gameState === 'crashed') {
         ctx.fillStyle = 'red';
-        ctx.fillText('YOU CRASHED!', canvas.width / 2 - 130, canvas.height / 2);
-        ctx.font = '18px monospace';
-        ctx.fillText('Press ENTER to try again', canvas.width / 2 - 120, canvas.height / 2 + 40);
+        ctx.font = '30px monospace';
+        ctx.fillText('Crash!', canvas.width / 2, canvas.height / 2 - 20);
+        ctx.font = '20px monospace';
+        ctx.fillText('Press ENTER to Retry', canvas.width / 2, canvas.height / 2 + 20);
     }
 
     ctx.restore();
 }
 
+function drawStars() {
+    ctx.fillStyle = 'white';
+    for (let star of stars) {
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawStars();
     drawTerrain();
     drawLander();
     drawOverlay();
@@ -221,7 +282,7 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowRight') lander.rotatingRight = true;
 
     if ((e.code === 'Enter' || e.code === "Space") && (gameState === 'crashed' || gameState === 'landed')) {
-        generateTerrain();
+        generateTerrain(difficulty);
         Object.assign(lander, {
             x: canvas.width / 2,
             y: 100,
@@ -244,5 +305,12 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowLeft') lander.rotatingLeft = false;
     if (e.code === 'ArrowRight') lander.rotatingRight = false;
 });
+
+document.addEventListener('keydown', () => {
+    // Unlock audio on first input
+    sounds.thrust.play().catch(() => {});
+    sounds.thrust.pause();
+}, { once: true });
+
 
 gameLoop();
