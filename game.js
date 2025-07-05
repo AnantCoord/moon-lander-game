@@ -18,6 +18,18 @@ sounds.thrust.volume = 0.6;
 sounds.land.volume = 0.8;
 sounds.crash.volume = 0.8;
 
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+if (isTouch) {
+    const startBtn = document.getElementById('startButton');
+    startBtn.style.display = 'block';
+
+    startBtn.addEventListener('click', () => {
+        gameState = 'playing';
+        startBtn.style.display = 'none';
+    });
+}
+
 const GRAVITY = 0.001;
 const THRUST = -0.01;
 const ROTATE_SPEED = 0.05;
@@ -309,16 +321,14 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowRight') lander.rotatingRight = false;
 });
 
-document.addEventListener('keydown', () => {
-    // Unlock audio on first input
+const unlockAudio = () => {
     sounds.thrust.play().catch(() => {});
     sounds.thrust.pause();
-}, { once: true });
-
+};
+document.addEventListener('keydown', unlockAudio, { once: true });
+document.addEventListener('touchstart', unlockAudio, { once: true });
 
 gameLoop();
-
-const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 if (isTouch) {
     document.getElementById('touchControls').style.display = 'flex';
