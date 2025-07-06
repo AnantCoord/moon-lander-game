@@ -50,16 +50,25 @@ On-screen buttons appear during gameplay.
 
 ## 📁 Project Structure
 moon-lander/
+
 ├── index.html
+
 ├── style.css
+
 ├── main.js
+
 ├── sounds/
+
 │ ├── rocketthrust.mp3
+
 │ ├── rocket-landing.mp3
+
 │ └── crash.mp3
+
 └── README.md
 
-🙌 Credits
+# 🙌 Credits
+
 Built by Foolish Genius
 
-Sounds: Freesound (credit individual assets if needed)
+Sounds: Freesound
