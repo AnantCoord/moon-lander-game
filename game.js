@@ -24,13 +24,13 @@ sounds.crash.volume = 0.8;
 
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-const GRAVITY = 0.001;
+let GRAVITY = 0.001;
 const THRUST = -0.01;
 const ROTATE_SPEED = 0.05;
 const LANDER_WIDTH = 20;
 const LANDER_HEIGHT = 30;
 const PAD_WIDTH = 80;
-const PAD_COUNT = 3;
+const PAD_COUNT = 5;
 const SAFE_LANDING_VY = 1.2;
 const SAFE_LANDING_ANGLE = Math.PI / 8; // ~22.5 deg
 
@@ -44,10 +44,11 @@ const groundY = canvas.height - 50;
 let pads = [];
 
 function generateTerrain(difficulty = 1) {
+    GRAVITY = 0.001 + difficulty * 0.0002;
     terrainPoints.length = 0; // reset
     const padCount = Math.max(1, PAD_COUNT - difficulty + 1);
-    const padWidth = Math.max(40, PAD_WIDTH - difficulty * 10);
-    const maxStep = 40 + difficulty * 10;
+    const padWidth = Math.max(30, PAD_WIDTH - difficulty * 12);
+    const maxStep = 40 + difficulty * 12;
 
     let x = 0;
     let lastY = groundY - 100;
@@ -218,20 +219,6 @@ function drawParticles() {
     ctx.globalAlpha = 1;
 }
 
-function drawTrail() {
-    ctx.strokeStyle = 'cyan';
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    for (let i = 0; i < trail.length - 1; i++) {
-        const p1 = trail[i];
-        const p2 = trail[i + 1];
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-}
-
 function drawLander() {
     ctx.save();
     ctx.translate(lander.x, lander.y);
@@ -342,7 +329,6 @@ function drawStars() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawStars();
-    // drawTrail();
     drawTerrain();
     // drawParticles();
     drawLander();
@@ -433,7 +419,7 @@ if (isTouch) {
             Object.assign(lander, {
                 x: canvas.width / 2,
                 y: 100,
-                vx: randomBetween(-1, 1),
+                vx: randomBetween(-1, 1 + difficulty * 0.05),
                 vy: randomBetween(0.5, 2),
                 angle: randomBetween(-Math.PI / 4, Math.PI / 4),
                 thrusting: false,
